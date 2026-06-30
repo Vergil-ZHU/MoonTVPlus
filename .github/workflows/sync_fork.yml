@@ -1,46 +1,38 @@
 name: Fork Sync
 
 permissions:
-  contents: write  # 必须开启写入权限，否则 Action 无法将更新推送到你的仓库
+  contents: write  # 赋予写入仓库更新的权限
 
 on:
   schedule:
-    - cron: "0 0 * * *"  # 每天午夜执行 (UTC时间，北京时间是早上8点)
-  workflow_dispatch:  # 允许在 GitHub Actions 页面手动点击触发
+    - cron: "0 0 * * *"  # 每天 UTC 0点自动执行
+  workflow_dispatch:     # 支持手动运行
 
 jobs:
   sync_with_upstream:
     name: Sync with Upstream
     runs-on: ubuntu-latest
-    if: ${{ github.event.repository.fork }}  # 确保只有在 fork 的仓库中才运行
+    if: ${{ github.event.repository.fork }}
 
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # fetch-depth: 0 极其重要！必须拉取完整的提交历史才能顺利跟上游进行 Diff 合并
+          fetch-depth: 0 
 
-      - name: Sync Upstream
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
-        with:
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-          # ⬇️ 只需要修改下面这三行 ⬇️
-          upstream_sync_repo: mtvpls/MoonTVPlus  # 例如：torvalds/linux
-          upstream_sync_branch: main                        # 上游仓库的分支名（注意确认是 main 还是 master）
-          target_sync_branch: main                          # 你自己仓库的目标分支名（通常也是 main 还是 master）
-          # ⬆️ 只需要修改上面这三行 ⬆️
-          test_mode: false
-
-      - name: Check for new commits
-        if: success()
-        run: echo "Sync completed successfully"
-
-      - name: Check for Failure
-        if: failure()
+      - name: Add Upstream and Sync
         run: |
-          echo "[Error] Sync failed. This might be due to:"
-          echo "1. Changes in the upstream workflow file"
-          echo "2. Merge conflicts that need manual resolution"
-          echo "3. Network issues"
-          echo "Please check the logs and consider manual sync if needed."
-          exit 1
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # 添加上游源
+          git remote add upstream https://github.com/mtvpls/MoonTVPlus.git
+          git fetch upstream
+          
+          # 切换并尝试快速追加或安全合并上游主分支
+          git checkout main
+          git merge upstream/main --allow-unrelated-histories -m "Auto-sync with upstream"
+          
+          # 推送到你自己的 Fork 仓库
+          git push origin main
