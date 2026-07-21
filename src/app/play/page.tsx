@@ -3001,24 +3001,8 @@ function PlayPageClient() {
     lastRefreshTimeRef.current = now;
 
     try {
-      const { video: initialVideo } = getPlaybackMedia(
-        preferredHls,
-        preferredVideo
-      );
-      if (!initialVideo) {
-        throw new Error('播放器尚未就绪');
-      }
-
-      // 保存当前播放进度
-      const currentTime = initialVideo.currentTime;
-      const isPaused = initialVideo.paused;
-
-      console.log(
-        `[链接刷新] 开始刷新 (${isScheduled ? '定时' : '错误触发'}), 当前时间:`,
-        currentTime
-      );
-
-      // 重新获取播放链接（添加时间戳避免缓存）
+      // 先请求新链接；请求期间继续播放，进度要在换源前一刻再记录，
+      // 否则恢复会回退到请求开始时的时间点（倒退几秒）
       const separator = currentXiaoyaUrlRef.current.includes('?') ? '&' : '?';
       const fetchUrl = `${currentXiaoyaUrlRef.current}${separator}format=json&t=${Date.now()}`;
 
@@ -3053,11 +3037,18 @@ function PlayPageClient() {
 
       console.log('[链接刷新] 获取到新链接');
 
-      // 刷新瞬间再取一次 media（播放器可能已重建）
+      // 链接就绪后再取 media，并在此刻记录进度（换源前最后一刻）
       const { video, hls } = getPlaybackMedia(preferredHls, preferredVideo);
       if (!video) {
         throw new Error('播放器尚未就绪');
       }
+
+      const currentTime = video.currentTime;
+      const isPaused = video.paused;
+      console.log(
+        `[链接刷新] 换源前记录进度 (${isScheduled ? '定时' : '错误触发'}):`,
+        currentTime
+      );
 
       // 优先走 HLS 换源；没有 hls 实例时按 progressive 直链处理
       if (hls && typeof hls.loadSource === 'function') {
