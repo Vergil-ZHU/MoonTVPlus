@@ -20,6 +20,8 @@ jobs:
         with:
           # fetch-depth: 0 极其重要！必须拉取完整的提交历史才能顺利跟上游进行 Diff 合并
           fetch-depth: 0 
+          # ⬇️ 新增下面这一行，让检出和推送使用高权限密钥 ⬇️
+          token: ${{ secrets.SYNC_PAT }}
 
       - name: Add Upstream and Sync
         run: |
